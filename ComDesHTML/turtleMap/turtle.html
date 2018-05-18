@@ -1,0 +1,237 @@
+<html>
+<head>
+	<title>turtleMap</title>
+	<link href="style.css" rel="stylesheet">
+</head>
+
+<body style="background-color: #3c3c3c">
+	
+<div id="container" style="width: 1200px">
+
+	<div class="row">
+		<div class="col full">
+			<p class="font-1">ANIMAL LIFE CYCLES AND NIGHT</p>
+		</div>
+	</div>
+
+	<div class="row">
+		<div class="col half-full">
+			<p class="font-2">
+			Sea turtles are very sensitive to artificial light, because new hatched sea turtles could easily lost their navigating ability when city lights disrupt their visual cues at night. Therefore, find new habitats that are away from city lights became essential.
+			</p>
+			<p class="font-2">
+			This visualization shows that in Florida, sea turtles are quickly losing their habitat to human. They have been basically wiped out from east coast of Florida and other traditional habitats, like Daytona Beach, Key West islands and Tampa bay and move to new habitat like Jupiter.			
+			</p>
+
+		</div>
+	</div>
+
+
+	<div class="row">
+		<div class="col full">
+			<p class="font-3">The Sea Turtle Habitat Shift Map in Florida</p>
+		</div>
+	</div>
+
+	<div class="row">
+
+
+		<div class="col full" id="dataviz">
+			
+		</div>
+	</div>
+		
+
+
+
+	<div class="row">
+		<div id="details" class="col half">
+			<p>
+				<!-- <li class="font-4">State Name:</li>
+				<li class="font-4">County Name:</li>
+				<li class="font-4">Insufficient Sleep:</li> -->
+			</p>
+		</div>
+
+		<div class="col half">
+			<p>
+			<a class="font-4" href='https://www.gbif.org'>Source: Global Biodiversity Information Facility </a>
+			</p>
+		</div>
+
+	</div>
+
+</div>
+
+
+
+
+
+
+
+
+
+	<script src="https://d3js.org/d3.v4.min.js"></script>
+
+	<script>
+
+		//display variables
+		var width = 1200;
+		var height = width/1.5;
+
+		//make an svg container
+		var svg = d3.select('#dataviz')
+			.append('svg')
+			.attr('height',height)
+			.attr('width',width)
+			//attach zoom handler
+			.call(d3.zoom()
+				.on("zoom", function () {
+        			g.attr("transform", d3.event.transform)
+      			})
+      		);
+		
+		//black background
+		var background = svg.append('rect').attr('x',0).attr('y',0).attr('width',width).attr('height',height).attr('fill','rgb(50,50,50)')
+
+		//append an svg group, into which we'll draw everything
+		//we then zoom the group
+   		var g = svg.append('g');
+
+    	//disregard -- setting up map projection
+    	//good projection settings for Florida
+		var proj = d3.geoTransverseMercator()
+  			.rotate([83, -29 - 20 / 100])
+  			.scale(6000);
+
+		//disregard -- setting up path projector
+	    var path = d3.geoPath()
+	    	.projection(proj);
+		   
+	    //load turtle dataset
+		d3.csv('chelonidae.csv', function(turtles){
+
+			//ask census for population for florida tracts
+		    d3.text('https://api.census.gov/data/2016/acs/acs5?get=NAME,B01001_001E&for=tract:*&in=state:12',function(census){
+
+		    	//remove brackets
+		    	var noBrackets = census.replace(/[\[\]]+/g,'')
+
+		    	//convert census into usable js object with necessary values
+		    	var censusDataset = d3.csvParse(noBrackets, function(d){
+					return {
+					name: d.NAME,
+					GEOID: d.state + d.county +d.tract,
+					population: +d.B01001_001E 
+		        	};
+		    	})
+
+		    	//expose census dataset with a key based on each census tract's fips code
+				var map = d3.map(censusDataset, function(d) { return d.GEOID; });
+
+				//load florida map geometries
+			    d3.json('florida_tract.json', function(err, geojson) {
+				   	
+				   	//find lowest and highest population density values
+				   	var extents = d3.extent(geojson.features, function(d){				    	
+				   		var tractVal = map.get(d.properties.GEOID) ;
+				    	var population = tractVal.population ;
+				    	var area = d.properties.ALAND;
+				    	return Math.sqrt(population/area);
+					})
+
+				   	//make color scale for population density
+				   	var popScale = d3.scaleLinear().domain(extents).range([10,255]);
+
+				   	//disregard -- draw all of the tracts 
+				    g.selectAll('.tracts')
+				    .data(geojson.features)
+				    .enter()
+				    .append("path")
+				    .attr("d", path)
+				    .attr('fill', function(d){
+				    	//fill each tract based on population density 
+				    	var tractVal = map.get(d.properties.GEOID) ;
+				    	var population = tractVal.population 
+				    	var area = d.properties.ALAND;
+				    	var density = Math.sqrt(population/area);
+				    	return "rgb(" + parseInt(popScale(density)) + "," + parseInt(popScale(density))  + "," + parseInt(popScale(density)) + ")";
+				    })
+
+					//draw dots for turtles! 
+				    g
+					.selectAll('.turtles')
+					.data(turtles)
+					.enter()
+					.append('circle')
+					.attr('cx',function(d){try{return proj([d.decimallongitude, d.decimallatitude])[0]}catch(error){}})
+					.attr('cy',function(d){try{return proj([d.decimallongitude, d.decimallatitude])[1]}catch(error){}})
+					.attr('class','turles')
+					.attr('r', 3)
+					.attr('opacity',function(d){
+						//only show dot if there is year data in the dataset
+						if(d.year){return 0.8}
+						else{return 0}
+					})
+					.attr('fill',function(d){
+						//color dots by year
+						if(d.year > 2005){ 
+							return "PaleGreen"
+						}
+						else{
+							return "Orchid"
+						}
+					});
+
+					var dotsBefore = d3.select('svg')
+						.append('circle')
+						.attr('cx', 175 )
+						.attr('cy', 300 )
+						.attr('r', 30 )
+						.attr('fill', '#BB7CB5')
+						;
+
+
+					var xLablesText = d3.select('svg')
+						.append('text')
+						.attr('x', 175 )
+						.attr('y', 300 )
+						.text('Turtle Sightings Before 2005')
+						.attr('opacity',1)
+						.attr('class','labels')
+						.attr('font-size', 12)
+						.attr('font-family','courier')
+						.attr('fill','white')
+						;
+
+					var dotsAfter = d3.select('svg')
+						.append('circle')
+						.attr('cx', 175 )
+						.attr('cy', 400 )
+						.attr('r', 30 )
+						.attr('fill', '#B9DB9C')
+						;
+
+
+					var xLablesText2 = d3.select('svg')
+						.append('text')
+						.attr('x', 175 )
+						.attr('y', 400 )
+						.text('Turtle Sightings After 2005')
+						.attr('opacity',1)
+						.attr('class','labels')
+						.attr('font-size', 12)
+						.attr('font-family','courier')
+						.attr('fill','white')
+						;
+
+
+
+			    });
+			})
+		})
+
+	</script>
+</body>
+
+</html>

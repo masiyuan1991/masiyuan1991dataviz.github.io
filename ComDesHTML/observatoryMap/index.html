@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Observatories</title>
+	<link href="style.css" rel="stylesheet">
+</head>
+<body style="background-color: #3c3c3c">
+
+
+<div id="container" style="width: 1200px">
+
+	<div class="row">
+		<div class="col full">
+			<p class="font-1">OBSERVATORY AND ASTRONOMY</p>
+		</div>
+	</div>
+
+	<div class="row">
+		<div class="col half-full">
+			<p class="font-2">
+			Probably the most obvious change for modern night would be the sky. Most of us living in the urban cities lost the chance of even take a glimpse of the big dipper, we lost the opportunities of feeling humble and feeling as a part of the planet. As oddinary person, we are losing out curiosity of universe and the spirit of exploration together with the stars. 
+			</p>
+			<p class="font-2">
+			Light pollution is also an increasing problem for astronomy and observatories, because artifical light not only brighten the night sky, but also affect spectra taking for objects and potentially adding inaccuracy to research. The visualization shows the site lasted 20 observatories, to avoid artificial light, they were built far away from cities.
+			</p>
+
+		</div>
+	</div>
+
+
+	<div class="row">
+		<div class="col full">
+			<p class="font-3">The U.S. Observatory Map</p>
+		</div>
+	</div>
+
+	<div class="row">
+
+
+		<div class="col full" id="dataviz">
+			
+		</div>
+	</div>
+		
+
+
+
+	<div class="row">
+		<div id="details" class="col half">
+			<p>
+				<li class="font-4">Observatory Name:</li>
+				<li class="font-4">Established Time:</li>
+				<li class="font-4">Location:</li>
+			</p>
+		</div>
+
+		<div class="col half">
+			<p>
+			<a class="font-4" href='https://en.wikipedia.org/wiki/List_of_astronomical_observatories'>Source: Wikipedia List of Astronomical Observatories </a>
+			</p>
+		</div>
+
+	</div>
+
+</div>
+
+
+
+
+
+	<script src="https://d3js.org/d3.v4.min.js"></script>
+	<script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
+	<script src="https://d3js.org/d3-geo-projection.v2.min.js"></script>
+
+	<script>
+
+			var width = 1200;
+			var height = 600;
+			var margin = 50;
+
+			var svg = d3.select('#dataviz')
+				.append('svg')
+				.attr('height',height)
+				.attr('width',width)
+				.call(d3.zoom()
+						.scaleExtent([1, 8])
+						.on("zoom", function () {
+							g.attr("transform", d3.event.transform)
+					})
+				);
+				;
+
+
+			var background = svg
+				.append('rect')
+				.attr('x',0)
+				.attr('y',0)
+				.attr('width',width)
+				.attr('height',height)
+				.attr('fill','rgb(50,50,50)')
+			;
+
+
+			var proj = d3.geoAlbersUsa()
+	  			.scale(1200)
+	  			//.rotate([90, -30])
+	  			.translate([width/2 + 50, height/2]);
+	  		;
+
+	    	var path = d3.geoPath()
+	    		.projection(proj);
+
+	    	//svg group for zooming
+	    	var g = svg.append('g');
+
+
+	    	d3.text("https://api.census.gov/data/2015/acs/acs5?get=NAME,B01001_001E&for=county:*", function(censusData){
+
+				var noBracketsData = censusData.replace(/[\[\]]+/g,'');
+
+				var dataset1 = d3.csvParse(noBracketsData, function(d){
+
+
+								return {
+								name: d.NAME,
+								county: d.county,
+								fips: d.state,
+								Population: parseInt(d.B01001_001E),
+
+								};
+				});
+
+				var censusMap= d3.map(dataset1, function(d){return d.fips + d.county});
+
+				d3.json('counties.json', function(err, geojson){
+
+					d3.csv('observatories4.csv', function(observatory){
+
+						d3.csv('observatories3.csv', function(observatoryNew){
+
+
+
+							geojson.features.forEach(function(county){
+
+									var match = censusMap.get(county.properties.GEOID);
+
+									if(match){
+										county.properties.population = match.Population;
+										county.properties.density = parseInt(match.Population) / parseInt(county.properties.ALAND);
+									}
+									else{
+										county.properties.population = 0;
+										county.properties.density = 0;
+									}
+
+								})
+
+
+							   	var landExtent = d3.extent(geojson.features, function(d) { return d.properties.density});
+
+								var landScale = d3.scalePow().exponent(0.3).domain(landExtent).range([1,0]);
+
+
+
+								var counties = g
+									.selectAll('.counties')
+									.data(geojson.features)
+									.enter()
+									.append("path")
+									.attr("d", path)
+									.attr('stroke', 'white')
+									.attr('stroke-width', 0)
+									.attr("class","counties")
+									//.attr('stroke', 'white')
+									.attr('fill', function(d){
+										//console.log(landScale(d.properties.density))
+										return d3.interpolateGreys(landScale(d.properties.density));
+
+
+									})	
+									.attr('opacity',1)
+									// .on('click', function(d){
+									// 	d3.selectAll('.counties').transition().duration(200).attr('stroke-width',0);
+									// 	d3.selectAll('#countiesName').transition().duration(0).attr('opacity',0).remove();
+									// 	d3.select(this).transition().duration(450).attr('stroke-width',2);
+
+
+									// 	var match = censusMap.get(d.properties.GEOID);
+
+									// 	if(match){
+
+									// 		var name = match.name;
+
+									// 		var countiesName = svg
+									// 			.append('text')
+									// 			.attr('id','countiesName')
+									// 			.attr('x', 20)
+									// 			.attr('y', height - 0.4 * titleHeight2)
+									// 			.attr('fill', 'black')
+									// 			.text(name)
+									// 			.transition()
+									// 			.duration(450)
+									// 			.attr('opacity',1)
+									// // 			;
+
+
+
+
+
+									// 	}		
+									// })
+									;			
+
+
+
+
+
+
+
+
+							var observatories = g
+								.selectAll('.observatories')
+								.data(observatory)
+								.enter()
+								.append('circle')
+								.attr('class', 'observatories')
+								.attr('cx', function(d){ return proj([d.Longitude, d.Latitude])[0] })
+								.attr('cy', function(d){ return proj([d.Longitude, d.Latitude])[1] })
+								.attr('fill', 'rgb(255,95,175)')
+								.attr('r', 3)
+								.attr('opacity', 0.7)
+								;
+
+							var observatoriesNew = g
+								.selectAll('.observatoriesNew')
+								.data(observatoryNew)
+								.enter()
+								.append('circle')
+								.attr('class', 'observatories')
+								.attr('cx', function(d){ return proj([d.Longitude, d.Latitude])[0] })
+								.attr('cy', function(d){ return proj([d.Longitude, d.Latitude])[1] })
+								.attr('fill', 'rgb(150,255,95)')
+								.attr('r', 5)
+								.attr('opacity', 0.8)
+								.on('mouseover',function(d){
+										d3.selectAll('.observatoriesNew').transition().duration(500).attr('r',5);
+										//d3.selectAll('#countiesName').transition().duration(200).attr('opacity'0).remove();
+										d3.select(this).transition().duration(450).attr('r',20);
+
+										d3.select('#details').html(
+
+													"<div id='details' class='col half'>" +
+														"<p>" +
+															"<li class='font-4'>" +  d.Name + "</li>" +
+															"<li class='font-4'>" + d.Established + "</li>" +
+															"<li class='font-4'>" + d.Location + "</li>" +
+															
+														"</p>" +
+													"</div>"
+
+
+
+
+											 //"<ul><li class='font-4'>State Name: " + d.properties.GEOID + "</li><li class='font-4'>County Name:" +:</li><li class='font-4'>" + Insufficient Sleep + "</li></ul>"
+										)
+
+
+
+
+										})
+								.on('mouseout',function(d){
+										d3.selectAll('.dots').transition().duration(500).attr('r',5);
+										//d3.selectAll('#countiesName').transition().duration(200).attr('opacity'0).remove();
+										d3.select(this).transition().duration(450).attr('r',5);
+									})
+								;
+
+
+
+
+							var dotsBefore = d3.select('svg')
+								.append('circle')
+								.attr('cx', 175 )
+								.attr('cy', 40 )
+								.attr('r', 30 )
+								.attr('fill', '#BB7CB5')
+								;
+
+
+							var xLablesText = d3.select('svg')
+								.append('text')
+								.attr('x', 175 )
+								.attr('y', 40 )
+								.text('Observatories Built Before 2002')
+								.attr('opacity',1)
+								.attr('class','labels')
+								.attr('font-size', 12)
+								.attr('font-family','courier')
+								.attr('fill','white')
+								;
+
+							var dotsAfter = d3.select('svg')
+								.append('circle')
+								.attr('cx', 500 )
+								.attr('cy', 40 )
+								.attr('r', 30 )
+								.attr('fill', '#B9DB9C')
+								;
+
+
+							var xLablesText2 = d3.select('svg')
+								.append('text')
+								.attr('x', 500 )
+								.attr('y', 40 )
+								.text('Observatories Built After 2002')
+								.attr('opacity',1)
+								.attr('class','labels')
+								.attr('font-size', 12)
+								.attr('font-family','courier')
+								.attr('fill','white')
+								;
+
+							// var planetariums = g
+							// 	.selectAll('.planetariums')
+							// 	.data(planetarium)
+							// 	.enter()
+							// 	.append('circle')
+							// 	.attr('class', 'planetariums')
+							// 	.attr('cx', function(d){ return proj([d.Longitude, d.Latitude])[0] })
+							// 	.attr('cy', function(d){ return proj([d.Longitude, d.Latitude])[1] })
+							// 	.attr('fill','red')
+							// 	.attr('r', 3)
+							// 	.attr('opacity', 0.5)
+							// 	;
+
+
+
+
+							(geojson.features).forEach(function(state){
+								state.properties.obs = 0;
+
+								observatory.forEach(function(observatory){
+									
+									var inState = d3.geoContains(state, [observatory.Longitude, observatory.Latitude])
+
+									if(inState == true){
+										state.properties.obs++									
+									}
+								})
+							})
+							console.log(geojson.features)
+
+						})
+					})
+				})
+			});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	</script>
+
+</body>
+</html>

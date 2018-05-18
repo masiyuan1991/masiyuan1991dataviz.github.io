@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>sleepingAndLight</title>
+	<link href="style.css" rel="stylesheet">
+</head>
+<body style="background-color: #3c3c3c">
+
+
+<div id="container" style="width: 1200px">
+
+	<div class="row">
+		<div class="col full">
+			<p class="font-1">SLEEPING AND NIGHT</p>
+		</div>
+	</div>
+
+	<div class="row">
+		<div class="col half-full">
+			<p class="font-2">
+			Cities stop sleeping, so as people. Millions of people working night shifts. Research suggest that interrupt biological rhythms are linked to medical disorders such as heart disease, insomnia, and depression.
+			</p>
+			<p class="font-2">
+			The diagram shows that when population density increased, its co-relation with insufficient sleep increased. At Larimer in Colorado, where is far away from city and crowd, people have the best sleeping quality.			
+			</p>
+
+		</div>
+	</div>
+
+
+	<div class="row">
+		<div class="col full">
+			<p class="font-3">Insufficient Sleep vs Population Density</p>
+		</div>
+	</div>
+
+	<div class="row">
+
+
+		<div class="col full" id="dataviz">
+			
+		</div>
+	</div>
+		
+
+
+
+	<div class="row">
+		<div id="details" class="col half">
+			<p>
+				<li class="font-4">State Name:</li>
+				<li class="font-4">County Name:</li>
+				<li class="font-4">Insufficient Sleep:</li>
+			</p>
+		</div>
+
+		<div class="col half">
+			<p>
+			<a class="font-4" href='http://www.countyhealthrankings.org/'>Source: County Health Ranking & Roadmaps </a>
+			</p>
+		</div>
+
+	</div>
+
+</div>
+
+
+	<script src="https://d3js.org/d3.v4.min.js"></script>
+	<script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
+	<script src="https://d3js.org/d3-geo-projection.v2.min.js"></script>
+
+
+
+	<script>
+		
+		var width = 1200;
+		var height = 600;
+		var margin = 200
+
+		var svg = d3.select('#dataviz')
+			.append('svg')
+			.attr('height',height)
+			.attr('width',width)
+			;
+
+
+		var background = svg
+			.append('rect')
+			.attr('x',0)
+			.attr('y',0)
+			.attr('width',width)
+			.attr('height',height)
+			.attr('fill','rgb(50,50,50)')
+			;
+
+
+		// var proj = d3.geoAlbersUsa()
+  // 			.scale(1200)
+  // 			//.rotate([90, -30])
+  // 			.translate([width/2 + 50, height/2]);
+  // 		;
+
+  //   	var path = d3.geoPath()
+  //   		.projection(proj);
+
+  //   	//svg group for zooming
+  //   	var g = svg.append('g');
+
+	
+		d3.text("https://api.census.gov/data/2016/acs/acs5?get=NAME,B01001_001E&for=county:*", function(censusData){
+			var noBracketsData = censusData.replace(/[\[\]]+/g,'');
+
+
+			var dataset1 = d3.csvParse(noBracketsData, function(d){
+
+
+
+							return {
+								name: d.NAME,
+								county: d.county,
+								fips: d.state,
+								Population: parseInt(d.B01001_001E)
+
+							};
+			});
+			
+			console.log(dataset1)
+
+
+
+   			d3.json('counties.json', function(err, geojson) {
+
+   				d3.csv('sleepingData.csv', function(sleeping){
+   					
+
+
+
+   					var censusMap= d3.map(dataset1, function(d){return d.fips + d.county});
+
+					var sleepMap = d3.map(sleeping, function(d){return d.GeoID});
+
+
+
+					geojson.features.forEach(function(county){
+
+						var censusMatch = censusMap.get(county.properties.GEOID);
+						var sleepMatch = sleepMap.get(parseInt(county.properties.GEOID));
+
+						if(censusMatch && sleepMatch){
+							county.properties.population = censusMatch.Population;
+							county.properties.density = parseInt(censusMatch.Population) / parseInt(county.properties.ALAND);
+							county.properties.badSleep = +sleepMatch.InsufficientSleep;
+							county.properties.state = sleepMatch.State;
+							county.properties.county = sleepMatch.County;
+						}
+						else{
+							county.properties.state = "unknown";
+							county.properties.population = 0;
+							county.properties.density = 0;
+
+
+						}
+
+					})
+
+					console.log(geojson.features);
+
+					// var coordinates = [];
+
+					var sleepExtent = d3.extent(geojson.features, function(d){return d.properties.badSleep});
+					var sleepScale = d3.scalePow().exponent(1).domain(sleepExtent).range([500, 100]);
+					
+
+					var populationDensityExtent = d3.extent(geojson.features, function(d){return d.properties.density});
+					var populationDensityScale = d3.scalePow().exponent(.25).domain(populationDensityExtent).range([200, 1000]);
+
+					console.log(sleepExtent)
+
+					// geojson.features.forEach(function(county){
+					// 	if(county.properties.density && county.properties.badSleep){
+					// 	coordinates.push([populationDensityScale(county.properties.density), sleepScale(county.properties.badSleep)])
+					// }
+
+					// })
+
+					// console.log(coordinates);
+
+					// var hull = d3.polygonHull(coordinates);
+
+					// var hullGen = d3.line().x(function(d){return d[0]}).y(function(d){return d[1]}).curve(d3.curveCatmullRomClosed);
+
+					// console.log(hull);
+
+					// svg.append('path')
+					// .attr('d', hullGen(hull))
+					// .attr('fill','red')
+
+
+					var bars = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25];
+					var barsScale = d3.scalePow().exponent(1).domain(1,25).range([500, 100]);
+					var barsColorScale = d3.scalePow().exponent(1).domain(1,25).range([0.2, 0.6]);
+
+					
+					var xlines = d3.select('svg')
+						.selectAll('.xlines')
+						.data(bars)
+						.enter()
+						.append('rect')
+						.attr('width', 1000)
+						.attr('height', 15)
+						.attr('y', function(d){ return d*16.667 + 75 })
+						.attr('x', 100 )
+						.attr('fill','#C5DA54')
+						.attr('opacity', function(d){ return 0.6- d*0.02})
+						;
+
+
+
+					var xLables = d3. select('svg')
+						.selectAll('.xLables')
+						.data(bars)
+						.enter()
+						.append('text')
+						.attr('x', 75 )
+						.attr('y', function(d){ return d*16.667 + 85 })
+						.text(function(d){return 48 - d + "%" })
+						.attr('opacity',.8)
+						.attr('class','labels')
+						.attr('font-size', 12)
+						.attr('font-family','courier')
+						.attr('fill','white')
+
+
+					var xLablesText = d3.select('svg')
+						.append('text')
+						.attr('x', 75 )
+						.attr('y', 80 )
+						.text('Insufficient Sleep')
+						.attr('opacity',1)
+						.attr('class','labels')
+						.attr('font-size', 12)
+						.attr('font-family','courier')
+						.attr('fill','white')
+
+					var yLine = d3.select('svg')
+						.append('line')
+						.attr('x1' , 100)
+						.attr('x2' , 1100)
+						.attr('y1' , 515)
+						.attr('y2' , 515)
+						.attr('stroke' , '#ccc')
+						.attr('stroke-width' , '1px')
+						;
+
+					var yLables1 = d3.select('svg')
+						.append('text')
+						.attr('x', 100 )
+						.attr('y', 530 )
+						.text('Low Population Density')
+						.attr('opacity',1)
+						.attr('class','labels')
+						.attr('font-size', 12)
+						.attr('font-family','courier')
+						.attr('fill','white')
+						;
+
+					var yLables1 = d3.select('svg')
+						.append('text')
+						.attr('x', 940 )
+						.attr('y', 530 )
+						.text('High Population Density')
+						.attr('opacity',1)
+						.attr('class','labels')
+						.attr('font-size', 12)
+						.attr('font-family','courier')
+						.attr('fill','white')
+						;
+
+					var dots = d3.select('svg')
+						.selectAll('.dots')
+						.data(geojson.features)
+						.enter()
+						.append('circle')
+						.attr('cx', function(d){return populationDensityScale(d.properties.density)})
+						.attr('cy', function(d){if(d.properties.badSleep){return sleepScale(d.properties.badSleep) } else{return -100}})
+						.attr('r', 3)
+						.attr('stroke','white')
+						.style('stroke-width',0)
+						.attr('opacity',0.8)
+						.attr('class', function(d){return d.properties.NAME})
+						.attr('fill', 'rgb(230,230,230')
+						.on('mouseover',function(d){
+							d3.selectAll('.dots').transition().duration(500).attr('r',0);
+							//d3.selectAll('#countiesName').transition().duration(200).attr('opacity'0).remove();
+							d3.select(this).transition().duration(450).attr('r',10);
+
+							d3.select('#details').html(
+
+										"<div id='details' class='col half'>" +
+											"<p>" +
+												"<li class='font-4'>State Name: " +  d.properties.state + "</li>" +
+												"<li class='font-4'>County Name: " +  d.properties.county  + "</li>" +
+												"<li class='font-4'>Insufficient Sleep: " +  d.properties.badSleep  + "%" + "</li>" +
+											"</p>" +
+										"</div>"
+
+
+
+
+								 //"<ul><li class='font-4'>State Name: " + d.properties.GEOID + "</li><li class='font-4'>County Name:" +:</li><li class='font-4'>" + Insufficient Sleep + "</li></ul>"
+							)
+
+
+
+
+							})
+						.on('mouseout',function(d){
+							d3.selectAll('.dots').transition().duration(500).attr('r',0);
+							//d3.selectAll('#countiesName').transition().duration(200).attr('opacity'0).remove();
+							d3.select(this).transition().duration(450).attr('r',3);
+
+							})
+
+						;
+
+
+
+
+
+
+
+
+
+
+				//console.log(geojson.features)
+				// var counties = g
+				// 	.selectAll('.counties')
+				// 	.data(geojson.features)
+				// 	.enter()
+				// 	.append("path")
+				// 	.attr("d", path)
+				// 	.attr('stroke', 'white')
+				// 	.attr('stroke-width', 0)
+				// 	.attr("class","counties")
+				// 	//.attr('stroke', 'white')
+				// 	.attr('fill', function(d){
+				// 		console.log(landScale(d.properties.density))
+				// 		return 'black'//d3.interpolatePlasma(landScale(d.properties.density));
+
+
+				// 	})	
+				// 	.attr('opacity',1)
+				// 	.on('click', function(d){
+				// 		d3.selectAll('.counties').transition().duration(200).attr('stroke-width',0);
+				// 		d3.selectAll('#countiesName').transition().duration(0).attr('opacity',0).remove();
+				// 		d3.select(this).transition().duration(450).attr('stroke-width',2);
+
+
+				// 		var match = censusMap.get(d.properties.GEOID);
+
+				// 		if(match){
+
+				// 			var name = match.name;
+
+				// 			var countiesName = svg
+				// 				.append('text')
+				// 				.attr('id','countiesName')
+				// 				.attr('x', 20)
+				// 				.attr('y', height - 0.4 * titleHeight2)
+				// 				.attr('fill', 'black')
+				// 				.text(name)
+				// 				.transition()
+				// 				.duration(450)
+				// 				.attr('opacity',1)
+				// 				;
+
+				// 		}		
+				// 	})
+				// 	;			
+			
+			
+			})
+
+		})
+			
+
+
+
+
+    	});
+
+
+
+
+
+
+
+
+
+
+	
+	</script>
+
+
+</body>
+</html>

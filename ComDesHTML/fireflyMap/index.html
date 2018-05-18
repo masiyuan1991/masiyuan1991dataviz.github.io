@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>firefly</title>
+	<link href="style.css" rel="stylesheet">
+
+	
+</head>
+<body style="background-color: #3c3c3c">
+
+
+<div id="container" style="width: 1200px">
+
+	<div class="row">
+		<div class="col full">
+			<p class="font-1">LOSING BEAUTY OF THE NIGHT</p>
+		</div>
+	</div>
+
+	<div class="row">
+		<div class="col half-full">
+			<p class="font-2">
+			People from last generation must have experience of venturing at night on their own backyard to observe fireflies. But seeing a firefly in the city today almost feel like win a lottery. Fireflies are escaping away from city because artificial light is disrupting their mating process. 			
+			</p>
+			<p class="font-2">
+			Nowadays, more and more people staring at screen all night, instead of go outside with friends and celebrate the beauty of the nature. People used to gather around campfires at night to tell stories and sing songs. In modern society, we are more used to be along, bathed in our individual sources of light.
+			</p>
+
+		</div>
+	</div>
+
+
+	<div class="row">
+		<div class="col full">
+			<p class="font-3">Firefly Map from 2009 to 2013</p>
+		</div>
+	</div>
+
+	<div class="row">
+
+
+		<div class="col full" id="dataviz">
+			
+		</div>
+	</div>
+		
+
+
+
+	<div class="row">
+		<div id="details" class="col half">
+			<p>
+				<!-- <li class="font-4">State Name:</li>
+				<li class="font-4">County Name:</li>
+				<li class="font-4">Insufficient Sleep:</li> -->
+			</p>
+		</div>
+
+		<div class="col half">
+			<p>
+			<a class="font-4" href='https://legacy.mos.org/fireflywatch/data_analysis'>Source: Museum of Science, Boston </a>
+			</p>
+		</div>
+
+	</div>
+
+</div>
+
+
+
+	<script src="https://d3js.org/d3.v4.min.js"></script>
+	<script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
+	<script src="https://d3js.org/d3-geo-projection.v2.min.js"></script>
+
+	<script>
+		var width = 1200;
+		var height = 600;
+
+		var svg = d3.select('#dataviz')
+			.append('svg')
+			.attr('height',height)
+			.attr('width',width)
+			.call(d3.zoom()
+					.scaleExtent([1, 8])
+					.on("zoom", function () {
+						g.attr("transform", d3.event.transform)
+				})
+			);
+			;
+
+
+		var background = svg
+			.append('rect')
+			.attr('x',0)
+			.attr('y',0)
+			.attr('width',width)
+			.attr('height',height)
+			.attr('fill','rgb(50,50,50)')
+		;
+
+
+		var proj = d3.geoAlbersUsa()
+  			.scale(1200)
+  			//.rotate([90, -30])
+  			.translate([width/2 + 50, height/2]);
+  		;
+
+    	var path = d3.geoPath()
+    		.projection(proj);
+
+    	//svg group for zooming
+    	var g = svg.append('g');
+
+		d3.text("https://api.census.gov/data/2015/acs/acs5?get=NAME,B01001_001E&for=county:*&key=19d3475dfcf76385a1f916d7e010500b39b92c43", function(censusData){
+			var noBracketsData = censusData.replace(/[\[\]]+/g,'');
+
+
+			var dataset1 = d3.csvParse(noBracketsData, function(d){
+
+
+
+							return {
+								name: d.NAME,
+								county: d.county,
+								fips: d.state,
+								Population: parseInt(d.B01001_001E),
+
+							};
+
+
+
+
+					});
+			//console.log(dataset1)
+	
+
+
+			//top bar and bottom bar and title
+	
+
+   			//input json data
+			var censusMap= d3.map(dataset1, function(d){return d.fips + d.county});
+
+   			d3.json('counties.json', function(err, geojson) {
+
+				d3.csv('ff.csv', function(fireflies){
+   								
+
+				geojson.features.forEach(function(county){
+
+					var match = censusMap.get(county.properties.GEOID);
+
+					if(match){
+						county.properties.population = match.Population;
+						county.properties.density = parseInt(match.Population) / parseInt(county.properties.ALAND);
+					}
+					else{
+						county.properties.population = 0;
+						county.properties.density = 0;
+					}
+
+				})
+
+
+			   	var landExtent = d3.extent(geojson.features, function(d) { return d.properties.density});
+
+				var landScale = d3.scalePow().exponent(0.3).domain(landExtent).range([1,0]);
+
+
+
+				var counties = g
+					.selectAll('.counties')
+					.data(geojson.features)
+					.enter()
+					.append("path")
+					.attr("d", path)
+					.attr('stroke', 'white')
+					.attr('stroke-width', 0)
+					.attr("class","counties")
+					//.attr('stroke', 'white')
+					.attr('fill', function(d){
+						//console.log(landScale(d.properties.density))
+						return d3.interpolateGreys(landScale(d.properties.density));
+
+
+					})	
+					.attr('opacity',1)
+					// .on('click', function(d){
+					// 	d3.selectAll('.counties').transition().duration(200).attr('stroke-width',0);
+					// 	d3.selectAll('#countiesName').transition().duration(0).attr('opacity',0).remove();
+					// 	d3.select(this).transition().duration(450).attr('stroke-width',2);
+
+
+					// 	var match = censusMap.get(d.properties.GEOID);
+
+					// 	if(match){
+
+					// 		var name = match.name;
+
+					// 		var countiesName = svg
+					// 			.append('text')
+					// 			.attr('id','countiesName')
+					// 			.attr('x', 20)
+					// 			.attr('y', height - 0.4 * titleHeight2)
+					// 			.attr('fill', 'black')
+					// 			.text(name)
+					// 			.transition()
+					// 			.duration(450)
+					// 			.attr('opacity',1)
+					// 			;
+
+
+
+
+
+					// 	}		
+					// })
+					;			
+			
+			
+				var ffViz = [];
+				var ffPlaces = [];
+				
+
+				for (var i = 0; i < fireflies.length; i++) {
+						if ( ffPlaces.indexOf(fireflies[i].habitat) == -1 ){ 
+							ffViz.push( {habitat: fireflies[i].habitat, lon: fireflies[i].Longitude, lat: fireflies[i].Latitude, count: +fireflies[i].sightings ,  year: [+fireflies[i].Year] } );
+							ffPlaces.push(fireflies[i].habitat);
+						}
+
+						else {
+							var pos = ffPlaces.indexOf(fireflies[i].habitat);
+							ffViz[pos].count = ffViz[pos].count + +fireflies[i].sightings;
+
+							if ( (ffViz[pos].year).indexOf(+fireflies[i].Year) == -1){
+								ffViz[pos].year.push(+fireflies[i].Year)
+							}
+							else{
+								
+							}
+						}
+				}
+
+				console.log(ffViz)
+
+				console.log(ffPlaces)
+/*
+				var ffmap = d3.map(fireflies,function(d){return d.habitat});
+
+				var ffs = [];
+
+				for(prop in targetObj){
+					var match = ffmap.get(prop);
+
+					ffs.push({ habitat: prop, sightings: targetObj[prop], longitude: parseFloat(match.Longitude), latitude: parseFloat(match.Latitude) })
+				}
+
+				console.log(ffs)
+*/
+
+
+
+			var ffYear = 2013;
+			var ffYearComparison = 2009;
+
+			var ffYearArray = [];
+			var deadArray = []
+
+
+
+
+			// var disappearArray = [];
+
+			// ffViz.forEach(function(ff){
+			// 	if (ff.year.includes(2013) == true && ff.year.includes(2009) == false){
+			// 		disappearArray.push(ff)
+			// 	}
+
+			// });
+
+			// var appearArray = [];
+
+			// ffViz.forEach(function(ff){
+			// 	if (ff.year.includes(2013) == false && ff.year.includes(2009) == true){
+			// 		appearArray.push(ff)
+			// 	}
+
+			// });
+
+			// var bothArray = [];
+
+			// ffViz.forEach(function(ff){
+			// 	if (ff.year.includes(2013) == true && ff.year.includes(2009) == true){
+			// 		bothArray.push(ff)
+			// 	}
+			// });
+
+			// var signleYearArray = [];
+
+
+			// ffViz.forEach(function(ff){
+			// 	if (ff.year.includes(2014) == true){
+			// 		signleYearArray.push(ff)
+			// 	}
+			// })
+
+
+			// var fireflies = g
+			// 		.selectAll('.fireflies')
+			// 		.data(signleYearArray)
+			// 		.enter()
+			// 		.append('circle')
+			// 		.attr('class', 'fireflies')
+			// 		.attr('cx', function(d){ 
+			// 				return proj([d.lon, d.lat])[0]
+			// 		})
+			// 		.attr('cy', function(d){ 
+			// 				return proj([d.lon, d.lat])[1]
+	
+			// 		})
+			// 		.attr('fill', 'rgb(200,200,200)')
+			// 		.attr('r', 2)
+			// 		.attr('opacity', 1)
+			// 		;
+
+
+			// ffViz.forEach(function(ff){
+			// 	if (ff.year.includes(ffYearComparison) == true){
+
+			// 		if (ff.year.includes(2013) == false){ffYearArray.push(ff)}
+			// 		else{}
+
+
+			// 	}
+			// 	else{
+			// 		deadArray.push(ff);
+			// 	}
+
+
+
+
+			// })
+
+
+			ffViz.forEach(function(ff){
+				if (ff.year.indexOf(ffYear) == -1){
+
+				 	if (ff.year.indexOf(ffYearComparison) == -1){
+				 	}
+				 	else{
+						deadArray.push(ff);
+					}
+					// if (ff.year.indexOf(ffYear - 1) == -1){
+					// }
+					// else{
+					// 	deadArray.push(ff);
+					// }
+				}
+				else{
+					ffYearArray.push(ff);
+				}
+
+			})
+
+
+				console.log(ffYearArray)
+
+				console.log(deadArray)
+
+
+				var fireflies = g
+					.selectAll('.fireflies')
+					.data(ffYearArray)
+					.enter()
+					.append('circle')
+					.attr('class', 'fireflies')
+					.attr('cx', function(d){ 
+							return proj([d.lon, d.lat])[0]
+					})
+					.attr('cy', function(d){ 
+							return proj([d.lon, d.lat])[1]
+	
+					})
+					.attr('r', 3)
+					.attr('fill', 'rgb(195,50,35)')
+					.attr('opacity', 0.5)
+					.transition()
+					.duration(1000)
+					.attr('opacity', 1)
+					.transition()
+					.duration(1000)
+					.attr('opacity', 0.5)
+					.transition()
+					.duration(1000)
+					.attr('opacity', 1)
+					.transition()
+					.duration(1000)
+					.attr('opacity', 0.7)
+
+					;
+
+				var fireflies = g
+					.selectAll('.fireflies')
+					.data(deadArray)
+					.enter()
+					.append('circle')
+					.attr('class', 'fireflies')
+					.attr('cx', function(d){ 
+							return proj([d.lon, d.lat])[0]
+					})
+					.attr('cy', function(d){ 
+							return proj([d.lon, d.lat])[1]
+	
+					})
+					.attr('r', 3)
+					.attr('opacity', 0.8)
+					.attr('fill', 'rgb(105,213,247)')
+					;
+
+					var dotsBefore = d3.select('svg')
+								.append('circle')
+								.attr('cx', 175 )
+								.attr('cy', 40 )
+								.attr('r', 30 )
+								.attr('fill', 'rgb(195,50,35)')
+								.attr('opacity', 0.7)
+								;
+
+
+					var xLablesText = d3.select('svg')
+								.append('text')
+								.attr('x', 175 )
+								.attr('y', 40 )
+								.text('Firefly Sighting That Disappeared Between 2009 to 2013')
+								.attr('opacity',1)
+								.attr('class','labels')
+								.attr('font-size', 12)
+								.attr('font-family','courier')
+								.attr('fill','white')
+								;
+
+					var dotsAfter = d3.select('svg')
+								.append('circle')
+								.attr('cx', 700 )
+								.attr('cy', 40 )
+								.attr('r', 30 )
+								.attr('fill', 'rgb(105,213,247)')
+								;
+
+
+					var xLablesText2 = d3.select('svg')
+								.append('text')
+								.attr('x', 700 )
+								.attr('y', 40 )
+								.text('Firefly Sighting That Appeared Between 2009 to 2013')
+								.attr('opacity',1)
+								.attr('class','labels')
+								.attr('font-size', 12)
+								.attr('font-family','courier')
+								.attr('fill','white')
+								;
+
+
+				// var fireflies = g
+				// 	.selectAll('.fireflies')
+				// 	.data(bothArray)
+				// 	.enter()
+				// 	.append('circle')
+				// 	.attr('class', 'fireflies')
+				// 	.attr('cx', function(d){ 
+				// 			return proj([d.lon, d.lat])[0]
+				// 	})
+				// 	.attr('cy', function(d){ 
+				// 			return proj([d.lon, d.lat])[1]
+	
+				// 	})
+				// 	.attr('r', 4)
+				// 	.attr('opacity', 1)
+				// 	.attr('fill', 'rgb(105,213,247)')
+				// 	;
+
+
+
+				// var fireflies = g
+				// 	.selectAll('.fireflies')
+				// 	.data(disappearArray)
+				// 	.enter()
+				// 	.append('circle')
+				// 	.attr('class', 'fireflies')
+				// 	.attr('cx', function(d){ 
+				// 			return proj([d.lon, d.lat])[0]
+				// 	})
+				// 	.attr('cy', function(d){ 
+				// 			return proj([d.lon, d.lat])[1]
+	
+				// 	})
+		
+				// 	.attr('r', 3)
+				// 	.attr('opacity', 1)
+				// 	.attr('fill', 'rgb(150,255,95)')
+				// 	;
+
+
+				// var fireflies = g
+				// 	.selectAll('.fireflies')
+				// 	.data(appearArray)
+				// 	.enter()
+				// 	.append('circle')
+				// 	.attr('class', 'fireflies')
+				// 	.attr('cx', function(d){ 
+				// 			return proj([d.lon, d.lat])[0]
+				// 	})
+				// 	.attr('cy', function(d){ 
+				// 			return proj([d.lon, d.lat])[1]
+	
+				// 	})
+		
+				// 	.attr('r', 3)
+				// 	.attr('opacity', 1)
+				// 	.attr('fill', 'rgb(255,95,175)')
+				// 	;
+
+
+
+
+
+				})
+
+			})
+			
+
+
+   			var legendPadding = 60;
+   			var legendHeight = 300;
+   			var legendWidth = 60;
+
+   			var legendBlockHeight = 33.5;
+
+
+   			var legendTicks = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1];
+
+   			var legendGroup = svg.append('g');
+
+   // 			var legendBackground = legendGroup
+			// 		.append('rect')
+			// 		.attr('y', (height - legendHeight) * 0.5 )
+			// 		.attr('x', legendPadding)
+			// 		.attr('height', legendHeight)
+			// 		.attr('width', legendWidth)
+			// 		.attr('fill','#ddd')
+			// 		.attr('stroke','#43246C')
+			// 		.attr('stroke-width', 0)
+			// 		;
+
+
+			// var legendTitle = legendGroup
+			// 	.append('text')
+			// 	.attr('id', 'legendTitle')
+			// 	.attr('x', legendPadding * 0.35)
+			// 	.attr('y', height * 0.5 + legendHeight * 0.5 + 30 )
+			// 	.text("Degree of light Pollution")
+			// 	;
+
+
+
+			// var legendBlocks = legendGroup
+			// 	.selectAll('.blocks')
+			// 	.data(legendTicks)
+			// 	.enter()
+			// 	.append('rect')
+			// 	.attr('class','blocks')
+			// 	.attr('x', legendPadding)
+			// 	.attr('y', function(d,i){return (height - legendHeight) * 0.5 + i * legendBlockHeight})
+			// 	.attr('width', legendWidth)
+			// 	.attr('height', legendBlockHeight)
+			// 	.attr('fill', function(d){return d3.interpolatePlasma(d)})
+			// 	;
+
+			// var legendLables = legendGroup
+			// 	.selectAll('.ticks')
+			// 	.data(legendTicks)
+			// 	.enter()
+			// 	.append('text')
+			// 	.attr('class', 'ticks')
+			// 	.attr('x', legendPadding + legendWidth + 8)
+			// 	.attr('y', function(d,i){return (height - legendHeight) * 0.5 + i * legendBlockHeight + 22})
+			// 	.text(function(d){return 10*d})
+			// 	;
+
+
+
+
+    	});
+
+
+
+
+
+    // 	d3.text("https://api.census.gov/data/2015/acs/acs5?get=NAME,B01001_001E&for=county:*&key=19d3475dfcf76385a1f916d7e010500b39b92c43", function(censusData){
+				
+				// var noBracketsData = censusData.replace(/[\[\]]+/g,'');
+
+
+				// var dataset1 = d3.csvParse(noBracketsData, function(d){
+
+
+				// 		var population = parseInt(d.B01001_001E);
+
+				// 		return {
+				// 			name: d.NAME,
+				// 			counties: d.county,
+				// 			states: d.state,
+				// 			Population: population,
+
+				// 		};
+
+				// })
+
+
+				// //console.log(dataset1)
+		
+				// var censusMap= d3.map(dataset1, function(d){return d.states + d.counties});
+
+
+
+
+				// d3.json('counties.json', function(err, geojson){
+
+						
+
+
+				// 		var counties = g
+				// 			.selectAll('.counties')
+				// 			.data(geojson.feature)
+				// 			.enter()
+				// 			.append("path")
+				// 			.attr("d", path)
+				// 			.attr("class", "counties")
+				// 			.attr('stroke-width',0)
+				// 			.attr('stroke-opacity',.5)
+				// 			.attr('stroke','white')
+				// 			.attr('fill', function(d){
+
+				// 				var match = censusMap.get(geojson.properties.GEOID);
+
+				// 				var landExtent = d3.extent(geojson.feature, function(d){ return parseInt(match.Population)/d.properties.ALAND});
+
+				// 				var landScale = d3.scalePow().exponent(.125).domain(landExtent).range([0,1])
+
+				// 				if(match){ return d3.interpolatePlasma(landScale(d.properties.density)); }
+				// 				else { return 'black'; }
+				// 			})	
+				// 			.attr('opacity',1)
+				// 			;	
+
+
+
+
+
+
+				// 			})
+
+
+
+
+
+				// })
+
+
+
+	</script>
+</body>
+</html>
